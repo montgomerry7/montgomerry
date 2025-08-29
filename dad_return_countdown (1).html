@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>긴급 공지 — 아빠 복귀까지 D-Day</title>
+  <meta name="description" content="아빠 복귀까지 남은 D-Day와 시간 카운트다운 페이지" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #6b7280;
+      --accent: #ef4444;
+      --ok: #10b981;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; padding: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple Color Emoji, Segoe UI Emoji, Arial, "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .wrap {
+      width: 100%; max-width: 900px; padding: 32px; text-align: center;
+    }
+    .banner {
+      display: inline-block;
+      padding: 10px 14px; border-radius: 999px;
+      background: #111; color: #fff; font-weight: 700; font-size: 14px; letter-spacing: 0.02em;
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    }
+    .title {
+      margin: 22px 0 8px; font-size: clamp(32px, 6vw, 56px); line-height: 1.1; font-weight: 900;
+    }
+    .subtitle {
+      margin: 0 0 28px; color: var(--muted); font-size: clamp(14px, 2.5vw, 18px);
+    }
+    .counter {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+      margin: 24px 0 6px;
+    }
+    .box {
+      border-radius: 20px; padding: 18px 12px; border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 40px rgba(0,0,0,.06);
+    }
+    .num {
+      font-size: clamp(28px, 7vw, 48px); font-weight: 900; letter-spacing: -0.02em;
+    }
+    .label { margin-top: 6px; font-size: 13px; color: var(--muted); letter-spacing: 0.04em; }
+    .ddey {
+      margin-top: 22px;
+      font-size: clamp(28px, 7vw, 52px); font-weight: 900;
+    }
+    .hint { margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .footer { margin-top: 26px; font-size: 12px; color: var(--muted); }
+    .blink { animation: blink 1s step-start infinite; }
+    @keyframes blink { 50% { opacity: .25; } }
+    .pill {
+      display:inline-block; padding: 4px 10px; border-radius: 999px;
+      border: 1px solid #e5e7eb; margin-left: 8px; font-size: 12px; color: var(--muted);
+    }
+    .cta {
+      margin-top: 18px;
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px dashed #d1d5db; padding: 10px 14px; border-radius: 12px; font-size: 13px; color: #374151;
+      cursor: pointer; user-select: none;
+    }
+    .cta:hover { background: #f9fafb; }
+    .sr { position: absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    @media (max-width: 520px) {
+      .counter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap" role="main">
+    <div class="banner" aria-label="긴급 공지 배너">긴급 공지 — 전 직원 필독</div>
+    <h1 class="title">🚨 아빠 복귀까지 <span id="ddey">D-??</span> 🚨</h1>
+    <p class="subtitle">곧 돌아오십니다… 준비하세요… <span class="pill" id="tzpill"></span></p>
+
+    <section class="counter" aria-label="카운트다운">
+      <div class="box"><div class="num" id="days">--</div><div class="label">일</div></div>
+      <div class="box"><div class="num" id="hours">--</div><div class="label">시간</div></div>
+      <div class="box"><div class="num" id="minutes">--</div><div class="label">분</div></div>
+      <div class="box"><div class="num" id="seconds">--</div><div class="label">초</div></div>
+    </section>
+
+    <div class="ddey" id="headline">로딩 중…</div>
+    <div class="hint">링크를 열 때마다 자동으로 갱신됩니다.</div>
+
+    <button id="copyBtn" class="cta" aria-live="polite" title="현재 페이지 링크 복사">
+      🔗 링크 복사해서 약올리기
+    </button>
+
+    <p class="footer">
+      목표일 변경: <code>?date=2025-09-08</code> (YYYY-MM-DD) ·
+      모드: <code>&amp;mode=simple</code> (심플 텍스트 헤더)
+    </p>
+  </main>
+
+  <script>
+    // -------- 설정 --------
+    // 기본 목표일 (KST 자정 기준)
+    const DEFAULT_DATE = "2025-09-08";
+    // URL 파라미터로 date=YYYY-MM-DD, mode=simple 지원
+    const params = new URLSearchParams(location.search);
+    const dateStr = (params.get("date") || DEFAULT_DATE).trim();
+    const mode = (params.get("mode") || "").toLowerCase();
+
+    // KST(UTC+9) 자정으로 고정 계산
+    function toKSTMidnightUTCms(yyyy_mm_dd) {
+      // yyyy-mm-ddT00:00:00+09:00 -> UTC로 변환된 타임스탬프
+      const [y,m,d] = yyyy_mm_dd.split("-").map(Number);
+      // Date.UTC expects Y, M(0-based), D, h, m, s
+      // KST 00:00 is UTC -9 hours
+      return Date.UTC(y, m-1, d, 0, 0, 0) - 9 * 60 * 60 * 1000;
+    }
+    const targetUTCms = toKSTMidnightUTCms(dateStr);
+
+    // UI 엘리먼트
+    const elDays = document.getElementById("days");
+    const elHours = document.getElementById("hours");
+    const elMinutes = document.getElementById("minutes");
+    const elSeconds = document.getElementById("seconds");
+    const elDdey = document.getElementById("ddey");
+    const elHeadline = document.getElementById("headline");
+    const tzpill = document.getElementById("tzpill");
+    const copyBtn = document.getElementById("copyBtn");
+
+    // 모드 처리 (심플 헤더)
+    if (mode === "simple") {
+      document.querySelector(".banner").style.display = "none";
+      document.querySelector(".subtitle").style.display = "none";
+    }
+
+    // 타임존 표기
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local";
+      tzpill.textContent = `KST 기준 · 당신은 ${tz}`;
+    } catch (e) {
+      tzpill.textContent = "KST 기준";
+    }
+
+    function formatD(diffMs) {
+      // D-day 표기: 목표일 0시(KST) 기준
+      const dayMs = 24 * 60 * 60 * 1000;
+      const daysLeft = Math.ceil(diffMs / dayMs);
+      if (daysLeft > 0) return `D-${daysLeft}`;
+      if (Math.abs(diffMs) < dayMs) return "D-DAY";
+      return "복귀 완료 🎉";
+    }
+
+    function update() {
+      const now = Date.now();
+      const diff = targetUTCms - now;
+
+      if (diff <= -24*60*60*1000) {
+        // 복귀일 지나면 완료 메시지
+        elDays.textContent = "0";
+        elHours.textContent = "0";
+        elMinutes.textContent = "0";
+        elSeconds.textContent = "0";
+        elDdey.textContent = "완료";
+        elHeadline.textContent = "복귀 완료 🎉 업무 정상화 시작!";
+        elHeadline.style.color = "var(--ok)";
+        document.title = "복귀 완료 🎉";
+        copyBtn.style.display = "none";
+        return;
+      }
+
+      const abs = Math.max(0, diff);
+      const s = Math.floor(abs / 1000);
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+
+      elDays.textContent = d.toString();
+      elHours.textContent = h.toString().padStart(2, "0");
+      elMinutes.textContent = m.toString().padStart(2, "0");
+      elSeconds.textContent = sec.toString().padStart(2, "0");
+
+      const ddeyText = formatD(diff);
+      elDdey.textContent = ddeyText;
+
+      // 헤드라인 문구 & 색상
+      if (diff > 0) {
+        elHeadline.textContent = `아빠 복귀까지 ${d}일 ${h}시간 ${m}분 ${sec}초`;
+        // 색상 단계: >7일 초록, 3~7일 주황, <=3일 빨강 + 깜빡임
+        const dayLeft = d;
+        if (dayLeft > 7) {
+          elHeadline.style.color = "var(--ok)";
+          elHeadline.classList.remove("blink");
+        } else if (dayLeft > 3) {
+          elHeadline.style.color = "var(--warn)";
+          elHeadline.classList.remove("blink");
+        } else {
+          elHeadline.style.color = "var(--accent)";
+          elHeadline.classList.add("blink");
+        }
+        document.title = `${ddeyText} · 아빠 복귀 D-Day`;
+      } else {
+        elHeadline.textContent = "오늘 복귀! 준비 완료?";
+        elHeadline.style.color = "var(--accent)";
+        elHeadline.classList.add("blink");
+        document.title = "D-DAY · 아빠 복귀";
+      }
+    }
+
+    // 1초마다 업데이트
+    update();
+    const timer = setInterval(update, 1000);
+
+    // 링크 복사
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        copyBtn.textContent = "✅ 링크 복사됨! 붙여넣기 GO";
+      } catch (e) {
+        copyBtn.textContent = "복사 실패 😢 주소창의 링크를 복사해주세요";
+      }
+      setTimeout(() => {
+        copyBtn.textContent = "🔗 링크 복사해서 약올리기";
+      }, 2500);
+    });
+  </script>
+</body>
+</html>
